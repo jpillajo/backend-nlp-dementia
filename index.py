@@ -1,5 +1,5 @@
 import json
-from flask import Flask, request, render_template
+from flask import Flask, request
 from flask_cors import CORS
 import re
 import nltk
@@ -7,6 +7,7 @@ import pandas as pd
 from pandas import *
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
+
 nltk.download('stopwords')
 import numpy as np
 import math
@@ -14,7 +15,8 @@ import itertools
 import os
 
 stemmer = SnowballStemmer('spanish')
-n = stopwords.words("spanish")
+bolsaStopwords = stopwords.words("spanish")
+
 
 # IMPORTAR DATOS DE UN ARCHIVO CSV SEGÚN SU ENFOQUE
 def importarDatosColumna(columna, path):
@@ -22,9 +24,11 @@ def importarDatosColumna(columna, path):
     columna = archivoCSV[columna].tolist()
     return columna
 
+
 def eliminarFilasVacias(columna):
     columna = [fila for fila in columna if pd.isnull(fila) == False]
     return columna
+
 
 # NORMALIZACIÓN DE LOS DATOS
 def convertirMayusculasEnMinusculas(lista):
@@ -34,316 +38,283 @@ def convertirMayusculasEnMinusculas(lista):
     return listaEnMinusculas
 
 
-def caracter_especiales(lista):
-    tit = []
+def eliminarCaracteresEspeciales(lista):
+    listaSinCaracteresEspeciales = []
     for token in lista:
-        tit.append(re.sub('[^A-Za-záéíóúñ]+', ' ', token))
-    return tit
+        listaSinCaracteresEspeciales.append(re.sub('[^A-Za-záéíóúñ]+', ' ', token))
+    return listaSinCaracteresEspeciales
 
 
 def tokenizacion(lista):
-    tit = []
-    aux = []
+    cadenaTokenizada = []
     for token in lista:
-        aux.append(token.split())
-    tit = aux
-    return tit
+        cadenaTokenizada.append(token.split())
+    return cadenaTokenizada
 
 
 # Stopwords
-def comprobar_stop_words(lista):
-    global n
+def comprobarStopwords(lista):
     for cadena in lista:
         for word in cadena:
-            if (word in n):
+            if word in bolsaStopwords:
                 return True
     return False
 
 
-def eliminar_stop_words(lista):
-    global n
-    while (comprobar_stop_words(lista)):
+def eliminarStopwords(lista):
+    while comprobarStopwords(lista):
         for cadena in lista:
             for word in cadena:
-                if (word in n):
+                if word in bolsaStopwords:
                     cadena.remove(word)
     return lista
 
 
 # Stemming
 def stemming(lista):
-    global stemmer
-    tit = []
-    aux = []
+    cadenaConStemming = []
     for cadena in lista:
-        aux = []
-        for token in cadena:
-            aux.append(stemmer.stem(token))
-        tit.append(aux)
-    return tit
+        palabraBase = []
+        for word in cadena:
+            palabraBase.append(stemmer.stem(word))
+        cadenaConStemming.append(palabraBase)
+    return cadenaConStemming
 
 
-def eliminar_palabras_repetidas(lista):
-    vector = []
-    for palabra in lista:
-        if palabra not in vector:
-            vector.append(palabra)
-    return vector
+def eliminarPalabrasRepetidas(lista):
+    listaSinPalabrasRepetidas = []
+    for cadena in lista:
+        if cadena not in listaSinPalabrasRepetidas:
+            listaSinPalabrasRepetidas.append(cadena)
+    return listaSinPalabrasRepetidas
+
 
 # ALGORITMOS DE MACHINE LEARNING
 ## COEFICIENTE DE JACCARD
-def unionConjuntos(list1, list2):
-    result = list(list1.union(list2))
-    return result
-
-def interseccionConjuntos(list1, list2):
-    result = list(list1.intersection(list2))
-    return result
+def unionConjuntos(lista1, lista2):
+    resultadoUnion = list(lista1.union(lista2))
+    return resultadoUnion
 
 
-def jacard_res(bolsa_de_palabras, documentos):
-    union = []
-    vector_interseccion = []  # tenemos todas las intersecciones
-    vector_union = []
-    interseccion = []
-    resultado = []
-    m = []
-    for i in range(len(bolsa_de_palabras)):
-        vector_interseccion = []  # tenemos todas las intersecciones
-        vector_union = []
+def interseccionConjuntos(lista1, lista2):
+    resultadoInterseccion = list(lista1.intersection(lista2))
+    return resultadoInterseccion
+
+
+def metodoJaccard(bolsaDePalabrasCurado, documentos):
+    matrizJaccard = []
+    for i in range(len(bolsaDePalabrasCurado)):
+        vectorInterseccion = []  # tenemos todas las intersecciones
+        vectorUnion = []
         for documento in documentos:
-            interseccion = interseccionConjuntos(set(documento), set(bolsa_de_palabras[i]))
-            union = unionConjuntos(set(documento), set(bolsa_de_palabras[i]))
-            vector_union.append(len(union))
-            vector_interseccion.append(len(interseccion))
-        resultado = np.array(vector_interseccion) / np.array(vector_union)
-        resultado = list(np.around(np.array(resultado), 2))
+            interseccion = interseccionConjuntos(set(documento), set(bolsaDePalabrasCurado[i]))
+            union = unionConjuntos(set(documento), set(bolsaDePalabrasCurado[i]))
+            vectorUnion.append(len(union))
+            vectorInterseccion.append(len(interseccion))
+        resultadoJaccard = np.array(vectorInterseccion) / np.array(vectorUnion)
+        resultadoJaccard = list(np.around(np.array(resultadoJaccard), 2))
+        matrizJaccard.append(resultadoJaccard)
+    matrizSimilitudJaccard = np.array(matrizJaccard)
+    return matrizSimilitudJaccard
 
-        m.append(resultado)
-    matriz = np.array(m)
-    return matriz
 
-
-def frecuencias(vocabulario, abstract, frecuencia):
-    lista_aux = []
-
-    for lista in abstract:
+def calcularTF(vocabulario, dataset, matrizTF):
+    listaContadorFrecuencia = []
+    for lista in dataset:
         for palabra in vocabulario:
-            lista_aux.append(lista.count(palabra))
-        frecuencia.append(lista_aux)
-        lista_aux = []
+            listaContadorFrecuencia.append(lista.count(palabra))
+        matrizTF.append(listaContadorFrecuencia)
+        listaContadorFrecuencia = []
 
 
-def calcular_wtf(frecuencia, lista_wtf):
-    lista_aux = []
-    for lista_frecuencia in frecuencia:
-        for dato in lista_frecuencia:
-            if (dato > 0):
-                lista_aux.append(round((math.log(dato, 10)) + 1, 2))
+def calcularWTF(matrizTF, matrizWTF):
+    listaPesadoTF = []
+    for listaFrecuencia in matrizTF:
+        for dato in listaFrecuencia:
+            if dato > 0:
+                # listaPesadoTF.append(round((math.log(dato, 10)) + 1, 2))
+                listaPesadoTF.append(1 + (math.log10(dato)))
             else:
-                lista_aux.append(0)
-        lista_wtf.append(lista_aux)
-        lista_aux = []
+                listaPesadoTF.append(0)
+        matrizWTF.append(listaPesadoTF)
+        listaPesadoTF = []
 
 
-def calcular_df(lista_wtf, lista_df, vocabulario):
+def calcularDF(matrizWTF, matrizDF, vocabulario):
     cont = 0
     index = 0
     for rep in range(len(vocabulario)):
-        for lista in lista_wtf:
-            if (lista[index] > 0):
+        for lista in matrizWTF:
+            if lista[index] > 0:
                 cont += 1
         index += 1
-        lista_df.append(cont)
+        matrizDF.append(cont)
         cont = 0
 
 
-def calcular_idf(lista_df, abstract, lista_idf):
-    for dato in lista_df:
-        # lista_idf.append(round(math.log(3/dato,10),2))
-        if (dato == 0):
+def calcularIDF(matrizDF, dataset, matrizIDF):
+    for dato in matrizDF:
+        if dato == 0:
             dato = 1
-        lista_idf.append(round(math.log(len(abstract) / dato, 10), 2))
+        matrizIDF.append(math.log10(len(dataset) / dato))
 
 
-def calcular_Tf_Idf(lista_idf, lista_wtf, lista_tf_idf):
-    for lista in lista_wtf:
-        lista_tf_idf.append(np.multiply(lista, lista_idf))
+def calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF):
+    for lista in matrizWTF:
+        matrizWTFxIDF.append(np.multiply(lista, matrizIDF))
 
 
-def redondear(lista_tf_idf):
+def redondearMatriz(matrizNormalizada):
     lista = []
     lista_aux = []
-    for i in range(len(lista_tf_idf)):
-        for j in range(len(lista_tf_idf[i])):
-            lista_aux.append(round(lista_tf_idf[i][j], 2))
+    for i in range(len(matrizNormalizada)):
+        for j in range(len(matrizNormalizada[i])):
+            lista_aux.append(round(matrizNormalizada[i][j], 2))
         lista.append(lista_aux)
         lista_aux = []
     return lista
 
 
-def modulo_raiz(lista_wtf, lista_modulo, vocabulario):
+def calcularModulo(matrizWTFxIDF, matrizModulo):
     acum = 0
-
-    for lista in lista_wtf:
+    for lista in matrizWTFxIDF:
         for dato in lista:
-            if (dato > 0):
-                acum = acum + dato ** 2
-        lista_modulo.append(round(math.sqrt(acum), 2))
+            if dato > 0:
+                acum = acum + pow(dato, 2)
+        matrizModulo.append(math.sqrt(acum))
         acum = 0
 
 
-def lista_normalizada(lista_wtf, lista_modulo, lista_normal):
+def normalizacionMatriz(matrizWTF, matrizModulo, matrizNormalizada):
     indice = 0
-    for lista in lista_wtf:
-        if (lista_modulo[indice] == 0):
-            lista_modulo[indice] = 1
-        lista_normal.append(list(map(lambda x: x / lista_modulo[indice], lista)))
-
+    for lista in matrizWTF:
+        if matrizModulo[indice] == 0:
+            matrizModulo[indice] = 1
+        matrizNormalizada.append(list(map(lambda x: x / matrizModulo[indice], lista)))
         indice += 1
 
 
-def coseno_vectorial(bolsa_de_palabras, dataset):
-    lista_similitud_cat = []
-    for i in range(len(bolsa_de_palabras)):
-        lista_doc = []
-        lista_enfoque = []
-        lista_df = []
-        lista_wtf = []
-        lista_idf = []
-        lista_tf_idf = []
-        # Tf
-        frecuencias(bolsa_de_palabras[i], dataset, lista_enfoque)
+def metodoCoseno(bolsaDePalabrasCuradoSR, dataset):
+    listaSimilitudCoseno = []
+    for i in range(len(bolsaDePalabrasCuradoSR)):
+        listaDocumentos = []
+        matrizTF = []
+        matrizDF = []
+        matrizWTF = []
+        matrizIDF = []
+        matrizWTFxIDF = []
+        # TF
+        calcularTF(bolsaDePalabrasCuradoSR[i], dataset, matrizTF)
         # WTF
-        calcular_wtf(lista_enfoque, lista_wtf)
+        calcularWTF(matrizTF, matrizWTF)
         # DF
-        calcular_df(lista_wtf, lista_df, bolsa_de_palabras[i])
+        calcularDF(matrizWTF, matrizDF, bolsaDePalabrasCuradoSR[i])
         # IDF
-        calcular_idf(lista_df, dataset, lista_idf)
-        # TF-IDF
-        calcular_Tf_Idf(lista_idf, lista_wtf, lista_tf_idf)
-        lista_modulo = []
-        lista_normal = []
-        modulo_raiz(lista_wtf, lista_modulo, bolsa_de_palabras[i])
-        lista_normalizada(lista_wtf, lista_modulo, lista_normal)
-        lista_normal = redondear(lista_normal)
+        calcularIDF(matrizDF, dataset, matrizIDF)
+        # WTF-IDF
+        calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF)
+        matrizModulo = []
+        matrizNormalizada = []
+        # if sum(sum(matrizWTFxIDF)) == 0:
+        calcularModulo(matrizWTF, matrizModulo)
+        normalizacionMatriz(matrizWTF, matrizModulo, matrizNormalizada)
+        # else:
+        #     calcularModulo(matrizWTFxIDF, matrizModulo)
+        #     normalizacionMatriz(matrizWTFxIDF, matrizModulo, matrizNormalizada)
+        # modulo_raiz(lista_wtf, lista_modulo, bolsa_de_palabras[i])
+        # lista_normalizada(lista_wtf, lista_modulo, lista_normal)
+        # lista_normal = redondear(lista_normal)
+        matrizNormalizada = redondearMatriz(matrizNormalizada)
 
-        for lista in lista_normal:
-            lista_doc.append(round((sum(lista) / len(bolsa_de_palabras[i])), 2))
-        lista_similitud_cat.append(lista_doc)
-    return lista_similitud_cat
+        for lista in matrizNormalizada:
+            listaDocumentos.append(round((sum(lista) / len(bolsaDePalabrasCuradoSR[i])), 2))
+        listaSimilitudCoseno.append(listaDocumentos)
+    return listaSimilitudCoseno
 
 
 app = Flask(__name__)
 CORS(app)
-UPLOAD_FOLDER = 'static/archivos'
-ALLOWED_EXTENSIONS = set(['csv'])
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-archivo_selec = False
-url_archivo = "static/archivos/server_interno.csv"
 
-activador = 0
+# CARGA DE LA BOLSA DE PALABRAS (SEGÚN ENFOQUE)
+urlBolsaDePalabras = "https://raw.githubusercontent.com/jpillajo/Documentos/main/BOLSA%20DE%20PALABRAS%203%20MODELOS%20PARA%20CATIA.csv"
+enfoqueBiomedico = importarDatosColumna("A. MODELO BIO MEDICO", urlBolsaDePalabras)
+columnaEnfoquePsicosocial = importarDatosColumna("B. ENFOQUE PSICOSOCIAL - COMUNITARIO", urlBolsaDePalabras)
+enfoquePsicosocial = eliminarFilasVacias(columnaEnfoquePsicosocial)
+columnaEnfoqueCotidiano = importarDatosColumna("C. ENFOQUE COTIDIANO", urlBolsaDePalabras)
+enfoqueCotidiano = eliminarFilasVacias(columnaEnfoqueCotidiano)
 
-bolsa_enfoque = ["BIO MEDICO", "PSICOSOCIAL - COMUNITARIO", "COTIDIANO"];
-tam_enfoque = len(bolsa_enfoque)
+# NORMALIZACIÓN
+enfoqueBiomedico = convertirMayusculasEnMinusculas(enfoqueBiomedico)
+enfoqueBiomedico = eliminarCaracteresEspeciales(enfoqueBiomedico)
+enfoquePsicosocial = convertirMayusculasEnMinusculas(enfoquePsicosocial)
+enfoquePsicosocial = eliminarCaracteresEspeciales(enfoquePsicosocial)
+enfoqueCotidiano = convertirMayusculasEnMinusculas(enfoqueCotidiano)
+enfoqueCotidiano = eliminarCaracteresEspeciales(enfoqueCotidiano)
 
-link_bolsa = "https://raw.githubusercontent.com/Freddy8-C/Proyecto_MachineLearning2/master/BOLSA%20DE%20PALABRAS%203%20MODELOS%20PARA%20CATIA.csv?token=GHSAT0AAAAAABWHCJVIARVPDV22QAW7UQ3EYWZ7Z2A"
-matriz = [0, 0]
-bolsa_de_palabras = []
-bio_medico = importarDatosColumna("A. MODELO BIO MEDICO", link_bolsa)
-psicosocial_com = importarDatosColumna("B. ENFOQUE PSICOSOCIAL - COMUNITARIO", link_bolsa)
-psicosocial_com = eliminarFilasVacias(psicosocial_com)
-cotidiano = importarDatosColumna("C. ENFOQUE COTIDIANO", link_bolsa)
-cotidiano = eliminarFilasVacias(cotidiano)
+# TOKENIZACIÓN
+enfoqueBiomedico = tokenizacion(enfoqueBiomedico)
+enfoqueBiomedico = eliminarStopwords(enfoqueBiomedico)
+enfoquePsicosocial = tokenizacion(enfoquePsicosocial)
+enfoquePsicosocial = eliminarStopwords(enfoquePsicosocial)
+enfoqueCotidiano = tokenizacion(enfoqueCotidiano)
+enfoqueCotidiano = eliminarStopwords(enfoqueCotidiano)
 
-# Normalizacion
-bio_medico = convertirMayusculasEnMinusculas(bio_medico)
-bio_medico = caracter_especiales(bio_medico)
-psicosocial_com = convertirMayusculasEnMinusculas(psicosocial_com)
-psicosocial_com = caracter_especiales(psicosocial_com)
-cotidiano = convertirMayusculasEnMinusculas(cotidiano)
-cotidiano = caracter_especiales(cotidiano)
+# STEMMING
+enfoqueBiomedico = stemming(enfoqueBiomedico)
+enfoqueBiomedico = list(itertools.chain(*enfoqueBiomedico))
+enfoquePsicosocial = stemming(enfoquePsicosocial)
+enfoquePsicosocial = list(itertools.chain(*enfoquePsicosocial))
+enfoqueCotidiano = stemming(enfoqueCotidiano)
+enfoqueCotidiano = list(itertools.chain(*enfoqueCotidiano))
+bolsaDePalabrasCurado = [enfoqueBiomedico, enfoquePsicosocial, enfoqueCotidiano]
 
-# Tokenizacion
-bio_medico = tokenizacion(bio_medico)
-bio_medico = eliminar_stop_words(bio_medico)
-psicosocial_com = tokenizacion(psicosocial_com)
-psicosocial_com = eliminar_stop_words(psicosocial_com)
-cotidiano = tokenizacion(cotidiano)
-cotidiano = eliminar_stop_words(cotidiano)
-
-# Stemming
-bio_medico = stemming(bio_medico)
-psicosocial_com = stemming(psicosocial_com)
-cotidiano = stemming(cotidiano)
-bio_medico = list(itertools.chain(*bio_medico))
-bio_medico = eliminar_palabras_repetidas(bio_medico)
-psicosocial_com = list(itertools.chain(*psicosocial_com))
-psicosocial_com = eliminar_palabras_repetidas(psicosocial_com)
-cotidiano = list(itertools.chain(*cotidiano))
-cotidiano = eliminar_palabras_repetidas(cotidiano)
-bolsa_de_palabras = [bio_medico, psicosocial_com, cotidiano]
+# ELIMINAR PALABRAS REPETIDAS
+enfoqueBiomedicoSR = eliminarPalabrasRepetidas(enfoqueBiomedico)
+enfoquePsicosocialSR = eliminarPalabrasRepetidas(enfoquePsicosocial)
+enfoqueCotidianoSR = eliminarPalabrasRepetidas(enfoqueCotidiano)
+bolsaDePalabrasCuradoSR = [enfoqueBiomedicoSR, enfoquePsicosocialSR, enfoqueCotidianoSR]
 
 
-def datos_listos_bolsa(documentos):
-    global bolsa_de_palabras
-    global matriz_jaccard
-    global activador
-    lista_similitud_cat = []
+def analizarSimilitud(activador, documentos = ''):
     dataset = []
-    tam = 0
-    if (activador == 0):
-        # link_dataset = "https://raw.githubusercontent.com/Freddy8-C/Proyecto_MachineLearning2/master/EXCEL%20DE%20VACIADO%20COMPLETO%20DE%20ENTREVISTAS%20PROFESIONALES%20MAYO2021.csv?token=GHSAT0AAAAAABWHCJVIIRXVIMY3XQOTUTWSYWZ7Z3Q"
-        # dataset= importarDatosColumna("P7. ¿Qué entiende por demencia?", link_dataset)
-        # dataset =  eliminarFilasVacias(dataset)
+    if activador == 0:
         dataset.append(documentos)
         dataset = convertirMayusculasEnMinusculas(dataset)
-        dataset = caracter_especiales(dataset)
+        dataset = eliminarCaracteresEspeciales(dataset)
         dataset = tokenizacion(dataset)
-        dataset = eliminar_stop_words(dataset)
+        dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
-        matriz_jacard = np.zeros((3, len(dataset)))
-        matriz_jacard = jacard_res(bolsa_de_palabras, dataset)
-        lista_similitud_cat = coseno_vectorial(bolsa_de_palabras, dataset)
-
-    if (activador == 1):
-        link_dataset = "https://raw.githubusercontent.com/Freddy8-C/Proyecto_MachineLearning2/master/EXCEL%20DE%20VACIADO%20COMPLETO%20DE%20ENTREVISTAS%20PROFESIONALES%20MAYO2021.csv?token=GHSAT0AAAAAABWHCJVIIRXVIMY3XQOTUTWSYWZ7Z3Q"
-        dataset = importarDatosColumna("P7. ¿Qué entiende por demencia?", link_dataset)
+        similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
+        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
+    if activador == 1:
+        urlDatasetDefinicionesDemencia = "https://raw.githubusercontent.com/jpillajo/Documentos/main/EXCEL%20DE%20VACIADO%20COMPLETO%20DE%20ENTREVISTAS%20PROFESIONALES%20MAYO2021.csv"
+        dataset = importarDatosColumna("P7. ¿Qué entiende por demencia?", urlDatasetDefinicionesDemencia)
         dataset = eliminarFilasVacias(dataset)
-        # dataset.append(documentos)
         dataset = convertirMayusculasEnMinusculas(dataset)
-        dataset = caracter_especiales(dataset)
+        dataset = eliminarCaracteresEspeciales(dataset)
         dataset = tokenizacion(dataset)
-        dataset = eliminar_stop_words(dataset)
+        dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
-        matriz_jacard = np.zeros((3, len(dataset)))
-        matriz_jacard = jacard_res(bolsa_de_palabras, dataset)
-        lista_similitud_cat = coseno_vectorial(bolsa_de_palabras, dataset)
-    if (activador == 2):
-        # link_dataset = "https://raw.githubusercontent.com/Freddy8-C/Proyecto_MachineLearning2/master/EXCEL%20DE%20VACIADO%20COMPLETO%20DE%20ENTREVISTAS%20PROFESIONALES%20MAYO2021.csv?token=GHSAT0AAAAAABWHCJVIIRXVIMY3XQOTUTWSYWZ7Z3Q"
+        similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
+        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
+    if activador == 2:
         dataset = importarDatosColumna(documentos, "static/archivos/server_interno.csv")
         dataset = eliminarFilasVacias(dataset)
-        # dataset.append(documentos)
         dataset = convertirMayusculasEnMinusculas(dataset)
-        dataset = caracter_especiales(dataset)
+        dataset = eliminarCaracteresEspeciales(dataset)
         dataset = tokenizacion(dataset)
-        dataset = eliminar_stop_words(dataset)
+        dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
-        matriz_jacard = np.zeros((3, len(dataset)))
-        matriz_jacard = jacard_res(bolsa_de_palabras, dataset)
-        tam = len(dataset)
-        lista_similitud_cat = coseno_vectorial(bolsa_de_palabras, dataset)
-    return [matriz_jacard, lista_similitud_cat, tam]
+        similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
+        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
+    return [similitudJaccard, similitudCoseno]
 
-lista = []
 
 def normalizacionDatosSimilitud(matriz):
-    print('matriz',matriz)
     matrizDatosNormalizados = []
-    sumaTotal = ((matriz[0])[0])+((matriz[1])[0])+((matriz[2])[0])
-    print('suma total',sumaTotal)
+    sumaTotal = ((matriz[0])[0]) + ((matriz[1])[0]) + ((matriz[2])[0])
     if (matriz[0])[0] != 0:
-        dato0normalizado = (((matriz[0])[0])*100)/sumaTotal
+        dato0normalizado = (((matriz[0])[0]) * 100) / sumaTotal
     else:
         dato0normalizado = 0
     if (matriz[1])[0] != 0:
@@ -359,144 +330,96 @@ def normalizacionDatosSimilitud(matriz):
     matrizDatosNormalizados.append(dato2normalizado)
     return matrizDatosNormalizados
 
+
 # APIs
 @app.route('/api/consultar-definicion', methods=['POST'])
 def consultarDefinicion():
-    data = json.loads(request.data.decode())
-    url = data["definicion"]
-    global activador
+    dataSend = json.loads(request.data.decode())
+    definicionIngresada = dataSend["definicion"]
     activador = 0
-    global matriz
-    matriz = datos_listos_bolsa(url)
+    matrizSimilitud = analizarSimilitud(activador, definicionIngresada)
 
-    matriz1normalizado = normalizacionDatosSimilitud(matriz[0])
-    matriz2normalizado = normalizacionDatosSimilitud(matriz[1])
+    similitudJaccardNormalizado = normalizacionDatosSimilitud(matrizSimilitud[0])
+    similitudCosenoNormalizado = normalizacionDatosSimilitud(matrizSimilitud[1])
 
     dto = json.dumps({'jaccard': [
-        {'enfoque':'BIO MEDICO', 'porcentaje': matriz1normalizado[0]},
-        {'enfoque':'PSICOSOCIAL - COMUNITARIO', 'porcentaje': matriz1normalizado[1]},
-        {'enfoque':'COTIDIANO', 'porcentaje': matriz1normalizado[2]}
+        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudJaccardNormalizado[0]},
+        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudJaccardNormalizado[1]},
+        {'enfoque': 'COTIDIANO', 'porcentaje': similitudJaccardNormalizado[2]}
     ], 'coseno': [
-        {'enfoque':'BIO MEDICO', 'porcentaje': matriz2normalizado[0]},
-        {'enfoque':'PSICOSOCIAL - COMUNITARIO', 'porcentaje': matriz2normalizado[1]},
-        {'enfoque':'COTIDIANO', 'porcentaje': matriz2normalizado[2]}
+        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudCosenoNormalizado[0]},
+        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudCosenoNormalizado[1]},
+        {'enfoque': 'COTIDIANO', 'porcentaje': similitudCosenoNormalizado[2]}
     ]})
     return dto
+
 
 @app.route('/api/obtener-dataset', methods=['POST'])
 def obtenerDataset():
-    data = json.loads(request.data.decode())
-    url = data["valor"]
-    global activador
+    dataSend = json.loads(request.data.decode())
+    enfoque = dataSend["valor"]
     activador = 1
-    matriz = datos_listos_bolsa("")
-    dto_jaccard = [];
-    dto_coseno = [];
-    matriz_jaccard_previa = matriz[0].tolist()
-    matriz_jaccard = matriz_jaccard_previa[url]
-    matriz_coseno_previa = matriz[1]
-    matriz_coseno = matriz_coseno_previa[url]
+    matrizSimilitud = analizarSimilitud(activador)
+    matrizJaccardPrevia = matrizSimilitud[0].tolist()
+    matrizJaccard = matrizJaccardPrevia[enfoque]
+    matrizCosenoPrevia = matrizSimilitud[1]
+    matrizCoseno = matrizCosenoPrevia[enfoque]
+    jsonJaccard = []
+    jsonCoseno = []
 
-    for i in range(len(matriz_jaccard)):
-        dto_jaccard.append({
-            'id': i+1, 'porcentaje': matriz_jaccard[i]
+    for i in range(len(matrizJaccard)):
+        jsonJaccard.append({
+            'id': i + 1, 'porcentaje': matrizJaccard[i]
         })
 
-    for i in range(len(matriz_coseno)):
-        dto_coseno.append({
-            'id': i+1, 'porcentaje': matriz_coseno[i]
+    for i in range(len(matrizCoseno)):
+        jsonCoseno.append({
+            'id': i + 1, 'porcentaje': matrizCoseno[i]
         })
 
-    dto = json.dumps({'jaccard': dto_jaccard, 'coseno': dto_coseno})
+    dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno})
     return dto
+
 
 @app.route('/api/subir-dataset', methods=['POST'])
 def subirArchivoCSV():
-    f = request.files['file']
-    f.save('assets/dataset.csv')
-    uploaded_df = pd.read_csv('assets/dataset.csv')
-    headers = uploaded_df.columns.tolist()
-    vectorColumnas = []
-    for i in range(len(headers)):
-        vectorColumnas.append({'id': i, 'valor': headers[i]})
-    jsonData = json.dumps(vectorColumnas)
-    return jsonData
+    archivoEnviadoCSV = request.files['file']
+    archivoEnviadoCSV.save('assets/dataset.csv')
+    archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
+    vectorAutores = []
+    for i in range(len(archivoAlmacenadoCSV)):
+        vectorAutores.append({'id': i, 'valor': archivoAlmacenadoCSV.loc[i]['Autor']})
+    dto = json.dumps(vectorAutores)
+    return dto
+
 
 @app.route('/api/consultar-similitud-dataset', methods=['POST'])
 def consultarSimilitudDataset():
-    data = json.loads(request.data.decode())
-    columna = data["valor"]
-    uploaded_df = pd.read_csv('assets/dataset.csv')
-    definicion = uploaded_df.iat[0, columna]
-    matriz = datos_listos_bolsa(definicion)
-    print(matriz)
+    dataSend = json.loads(request.data.decode())
+    autor = dataSend["valor"]
+    archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
 
-    matriz1normalizado = normalizacionDatosSimilitud(matriz[0])
-    matriz2normalizado = normalizacionDatosSimilitud(matriz[1])
+    definicion = archivoAlmacenadoCSV.loc[autor, 'Definición']
+    activador = 0
+    matrizSimilitud = analizarSimilitud(activador, definicion)
+
+    similitudJaccardNormalizado = normalizacionDatosSimilitud(matrizSimilitud[0])
+    similitudCosenoNormalizado = normalizacionDatosSimilitud(matrizSimilitud[1])
 
     dto = json.dumps({'jaccard': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': matriz1normalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': matriz1normalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': matriz1normalizado[2]}
+        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudJaccardNormalizado[0]},
+        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudJaccardNormalizado[1]},
+        {'enfoque': 'COTIDIANO', 'porcentaje': similitudJaccardNormalizado[2]}
     ], 'coseno': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': matriz2normalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': matriz2normalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': matriz2normalizado[2]}
+        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudCosenoNormalizado[0]},
+        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudCosenoNormalizado[1]},
+        {'enfoque': 'COTIDIANO', 'porcentaje': similitudCosenoNormalizado[2]}
     ]})
-    os.remove('assets/dataset.csv')
     return dto
 
-###############################
-@app.route('/Subir_demencia.php')
-def demencia():
-    global lista
-    global activador
-    global matriz
-    global bolsa_enfoque
-    act = 0;
 
-    activador = 2
-    return render_template("Subir_demencia.php", activador=activador, tam_enfoque=tam_enfoque,
-                           bolsa_enfoque=bolsa_enfoque, matriz_jaccard=matriz[0], lista_tf_idf=matriz[1], lista=lista,
-                           act=act)
-
-
-def mostrar_cabeceras():
-    df = pd.read_csv("static/archivos/server_interno.csv")  # ===> Incluir las cabeceras
-    import_headers = df.axes[1]  # ==> 1 es para identificar las columnas
-    return list(import_headers)
-
-
-@app.route("/upload", methods=["GET", "POST"])
-def upload():
-    global bolsa_de_palabras
-    global matriz_jaccard
-    global activador
-    activador = 2
-    global matriz
-    global archivo_selec
-    global lista
-    act = 0;
-    if (request.method == "POST"):
-        f = request.files["upfile"]
-        archivo_selec = True
-        f.save(os.path.join(app.config['UPLOAD_FOLDER'], "server_interno.csv"))
-        lista = mostrar_cabeceras()
-        return render_template("Subir_demencia.php", activador=activador, tam_enfoque=tam_enfoque,
-                               bolsa_enfoque=bolsa_enfoque, matriz_jaccard=matriz[0], lista_tf_idf=matriz[1],
-                               lista=lista, act=act)
-
-
-@app.route('/Subir_demencia.php', methods=["GET", "POST"])
-def subir():
-    global activador
-
-    activador = 2
-    global matriz
-    act = 1;
-    columna = request.form['combo']
-    matriz = datos_listos_bolsa(columna)
-    tamanio = matriz[2]
-    return render_template("Subir_demencia.php", activador=activador, tam_enfoque=tam_enfoque,
-                           bolsa_enfoque=bolsa_enfoque, matriz_jaccard=matriz[0], lista_tf_idf=matriz[1], act=act,
-                           tamanio=tamanio)
+@app.route('/api/eliminar-archivo-dataset', methods=['GET'])
+def eliminarArchivoDataset():
+    if os.path.exists('assets/dataset.csv'):
+        os.remove('assets/dataset.csv')
+    return 'Eliminación exitosa'
