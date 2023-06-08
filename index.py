@@ -414,7 +414,8 @@ def consultarSimilitudDataset():
         {'enfoque': 'BIO MEDICO', 'porcentaje': similitudCosenoNormalizado[0]},
         {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudCosenoNormalizado[1]},
         {'enfoque': 'COTIDIANO', 'porcentaje': similitudCosenoNormalizado[2]}
-    ]})
+    ], 'definicion': definicion
+    })
     return dto
 
 
