@@ -7,7 +7,6 @@ import pandas as pd
 from pandas import *
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
-
 nltk.download('stopwords')
 import numpy as np
 import math
@@ -16,6 +15,7 @@ import os
 
 stemmer = SnowballStemmer('spanish')
 bolsaStopwords = stopwords.words("spanish")
+encabezadosEnfoques = ['BIOMÉDICO', 'PSICOSOCIAL - COMUNITARIO', 'COTIDIANO']
 
 
 # IMPORTAR DATOS DE UN ARCHIVO CSV SEGÚN SU ENFOQUE
@@ -311,23 +311,25 @@ def analizarSimilitud(activador, documentos = ''):
 
 
 def normalizacionDatosSimilitud(matriz):
+    vectorSumaEnfoque = []
     matrizDatosNormalizados = []
-    sumaTotal = ((matriz[0])[0]) + ((matriz[1])[0]) + ((matriz[2])[0])
-    if (matriz[0])[0] != 0:
-        dato0normalizado = (((matriz[0])[0]) * 100) / sumaTotal
-    else:
-        dato0normalizado = 0
-    if (matriz[1])[0] != 0:
-        dato1normalizado = (((matriz[1])[0]) * 100) / sumaTotal
-    else:
-        dato1normalizado = 0
-    if (matriz[2])[0] != 0:
-        dato2normalizado = (((matriz[2])[0]) * 100) / sumaTotal
-    else:
-        dato2normalizado = 0
-    matrizDatosNormalizados.append(dato0normalizado)
-    matrizDatosNormalizados.append(dato1normalizado)
-    matrizDatosNormalizados.append(dato2normalizado)
+    for enfoque in matriz:
+        acum = 0
+        for i in enfoque:
+            acum = acum + i
+        vectorSumaEnfoque.append(acum)
+
+    cont = 0
+    for enfoque in matriz:
+        vectorDatosNormalizados = []
+        for i in enfoque:
+            if i != 0 or vectorSumaEnfoque[cont] != 0:
+                n1 = (i*100)/vectorSumaEnfoque[cont]
+            else:
+                n1 = 0
+            vectorDatosNormalizados.append(n1)
+        cont += 1
+        matrizDatosNormalizados.append(vectorDatosNormalizados)
     return matrizDatosNormalizados
 
 
@@ -338,19 +340,26 @@ def consultarDefinicion():
     definicionIngresada = dataSend["definicion"]
     activador = 0
     matrizSimilitud = analizarSimilitud(activador, definicionIngresada)
+    m1 = matrizSimilitud[0].transpose()
+    m2 = np.array(matrizSimilitud[1]).transpose()
+    matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
+    matrizCosenoPrevia = normalizacionDatosSimilitud(m2)
+    similitudJaccardNormalizado = np.array(matrizJaccardPrevia).transpose()
+    similitudCosenoNormalizado = np.array(matrizCosenoPrevia).transpose()
+    jsonJaccard = []
+    jsonCoseno = []
 
-    similitudJaccardNormalizado = normalizacionDatosSimilitud(matrizSimilitud[0])
-    similitudCosenoNormalizado = normalizacionDatosSimilitud(matrizSimilitud[1])
+    for i in range(len(similitudJaccardNormalizado)):
+        jsonJaccard.append({
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudJaccardNormalizado[i][0]
+        })
 
-    dto = json.dumps({'jaccard': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudJaccardNormalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudJaccardNormalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': similitudJaccardNormalizado[2]}
-    ], 'coseno': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudCosenoNormalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudCosenoNormalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': similitudCosenoNormalizado[2]}
-    ]})
+    for i in range(len(similitudCosenoNormalizado)):
+        jsonCoseno.append({
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudCosenoNormalizado[i][0]
+        })
+
+    dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno})
     return dto
 
 
@@ -360,10 +369,15 @@ def obtenerDataset():
     enfoque = dataSend["valor"]
     activador = 1
     matrizSimilitud = analizarSimilitud(activador)
-    matrizJaccardPrevia = matrizSimilitud[0].tolist()
-    matrizJaccard = matrizJaccardPrevia[enfoque]
-    matrizCosenoPrevia = matrizSimilitud[1]
-    matrizCoseno = matrizCosenoPrevia[enfoque]
+    m1 = matrizSimilitud[0].transpose()
+    m2 = np.array(matrizSimilitud[1]).transpose()
+    matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
+    matrizCosenoPrevia = normalizacionDatosSimilitud(m2)
+    s1 = np.array(matrizJaccardPrevia).transpose()
+    s2 = np.array(matrizCosenoPrevia).transpose()
+
+    matrizJaccard = s1[enfoque]
+    matrizCoseno = s2[enfoque]
     jsonJaccard = []
     jsonCoseno = []
 
@@ -384,8 +398,15 @@ def obtenerDataset():
 @app.route('/api/subir-dataset', methods=['POST'])
 def subirArchivoCSV():
     archivoEnviadoCSV = request.files['file']
-    archivoEnviadoCSV.save('assets/dataset.csv')
-    archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
+    if archivoEnviadoCSV.mimetype == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        archivoEnviadoCSV.save('assets/dataset.xlsx')
+        archivoAlmacenadoCSV = pd.read_excel('assets/dataset.xlsx')
+        archivoAlmacenadoCSV.to_csv('assets/dataset.csv')
+        if os.path.exists('assets/dataset.xlsx'):
+            os.remove('assets/dataset.xlsx')
+    else:
+        archivoEnviadoCSV.save('assets/dataset.csv')
+        archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
     vectorAutores = []
     for i in range(len(archivoAlmacenadoCSV)):
         vectorAutores.append({'id': i, 'valor': archivoAlmacenadoCSV.loc[i]['Autor']})
@@ -402,20 +423,26 @@ def consultarSimilitudDataset():
     definicion = archivoAlmacenadoCSV.loc[autor, 'Definición']
     activador = 0
     matrizSimilitud = analizarSimilitud(activador, definicion)
+    m1 = matrizSimilitud[0].transpose()
+    m2 = np.array(matrizSimilitud[1]).transpose()
+    matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
+    matrizCosenoPrevia = normalizacionDatosSimilitud(m2)
+    similitudJaccardNormalizado = np.array(matrizJaccardPrevia).transpose()
+    similitudCosenoNormalizado = np.array(matrizCosenoPrevia).transpose()
+    jsonJaccard = []
+    jsonCoseno = []
 
-    similitudJaccardNormalizado = normalizacionDatosSimilitud(matrizSimilitud[0])
-    similitudCosenoNormalizado = normalizacionDatosSimilitud(matrizSimilitud[1])
+    for i in range(len(similitudJaccardNormalizado)):
+        jsonJaccard.append({
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudJaccardNormalizado[i][0]
+        })
 
-    dto = json.dumps({'jaccard': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudJaccardNormalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudJaccardNormalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': similitudJaccardNormalizado[2]}
-    ], 'coseno': [
-        {'enfoque': 'BIO MEDICO', 'porcentaje': similitudCosenoNormalizado[0]},
-        {'enfoque': 'PSICOSOCIAL - COMUNITARIO', 'porcentaje': similitudCosenoNormalizado[1]},
-        {'enfoque': 'COTIDIANO', 'porcentaje': similitudCosenoNormalizado[2]}
-    ], 'definicion': definicion
-    })
+    for i in range(len(similitudCosenoNormalizado)):
+        jsonCoseno.append({
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudCosenoNormalizado[i][0]
+        })
+
+    dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno, 'definicion': definicion})
     return dto
 
 
