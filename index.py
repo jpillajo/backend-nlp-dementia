@@ -7,6 +7,7 @@ import pandas as pd
 from pandas import *
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
+
 nltk.download('stopwords')
 import numpy as np
 import math
@@ -89,6 +90,16 @@ def eliminarPalabrasRepetidas(lista):
     return listaSinPalabrasRepetidas
 
 
+# UNIFICAR BOLSAS DE PALABRAS
+def crearBolsaUnificada(dataset):
+    bolsaGeneral = []
+    for enfoque in dataset:
+        for termino in enfoque:
+            bolsaGeneral.append(termino)
+    bolsaGeneralSR = eliminarPalabrasRepetidas(bolsaGeneral)
+    return bolsaGeneralSR
+
+
 # ALGORITMOS DE MACHINE LEARNING
 ## COEFICIENTE DE JACCARD
 def unionConjuntos(lista1, lista2):
@@ -118,18 +129,17 @@ def metodoJaccard(bolsaDePalabrasCurado, documentos):
     return matrizSimilitudJaccard
 
 
-def calcularTF(vocabulario, dataset, matrizTF):
-    listaContadorFrecuencia = []
+def calcularTF(dataset, vocabulario, matrizTF):
     for lista in dataset:
+        listaContadorFrecuencia = []
         for palabra in vocabulario:
             listaContadorFrecuencia.append(lista.count(palabra))
         matrizTF.append(listaContadorFrecuencia)
-        listaContadorFrecuencia = []
 
 
 def calcularWTF(matrizTF, matrizWTF):
-    listaPesadoTF = []
     for listaFrecuencia in matrizTF:
+        listaPesadoTF = []
         for dato in listaFrecuencia:
             if dato > 0:
                 # listaPesadoTF.append(round((math.log(dato, 10)) + 1, 2))
@@ -137,19 +147,16 @@ def calcularWTF(matrizTF, matrizWTF):
             else:
                 listaPesadoTF.append(0)
         matrizWTF.append(listaPesadoTF)
-        listaPesadoTF = []
 
 
-def calcularDF(matrizWTF, matrizDF, vocabulario):
-    cont = 0
-    index = 0
-    for rep in range(len(vocabulario)):
-        for lista in matrizWTF:
-            if lista[index] > 0:
-                cont += 1
-        index += 1
-        matrizDF.append(cont)
+def calcularDF(matrizWTF, matrizDF):
+    transpuestaWTF = np.array(matrizWTF).transpose()
+    for fila in transpuestaWTF:
         cont = 0
+        for columna in fila:
+            if columna > 0:
+                cont += 1
+        matrizDF.append(cont)
 
 
 def calcularIDF(matrizDF, dataset, matrizIDF):
@@ -164,72 +171,57 @@ def calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF):
         matrizWTFxIDF.append(np.multiply(lista, matrizIDF))
 
 
-def redondearMatriz(matrizNormalizada):
-    lista = []
-    lista_aux = []
-    for i in range(len(matrizNormalizada)):
-        for j in range(len(matrizNormalizada[i])):
-            lista_aux.append(round(matrizNormalizada[i][j], 2))
-        lista.append(lista_aux)
-        lista_aux = []
-    return lista
-
-
 def calcularModulo(matrizWTFxIDF, matrizModulo):
-    acum = 0
     for lista in matrizWTFxIDF:
+        acum = 0
         for dato in lista:
             if dato > 0:
                 acum = acum + pow(dato, 2)
         matrizModulo.append(math.sqrt(acum))
-        acum = 0
 
 
-def normalizacionMatriz(matrizWTF, matrizModulo, matrizNormalizada):
+def normalizacionMatriz(matrizWTFxIDF, matrizModulo, matrizNormalizada):
     indice = 0
-    for lista in matrizWTF:
+    for lista in matrizWTFxIDF:
         if matrizModulo[indice] == 0:
             matrizModulo[indice] = 1
         matrizNormalizada.append(list(map(lambda x: x / matrizModulo[indice], lista)))
         indice += 1
 
 
-def metodoCoseno(bolsaDePalabrasCuradoSR, dataset):
-    listaSimilitudCoseno = []
-    for i in range(len(bolsaDePalabrasCuradoSR)):
-        listaDocumentos = []
-        matrizTF = []
-        matrizDF = []
-        matrizWTF = []
-        matrizIDF = []
-        matrizWTFxIDF = []
-        # TF
-        calcularTF(bolsaDePalabrasCuradoSR[i], dataset, matrizTF)
-        # WTF
-        calcularWTF(matrizTF, matrizWTF)
-        # DF
-        calcularDF(matrizWTF, matrizDF, bolsaDePalabrasCuradoSR[i])
-        # IDF
-        calcularIDF(matrizDF, dataset, matrizIDF)
-        # WTF-IDF
-        calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF)
-        matrizModulo = []
-        matrizNormalizada = []
-        # if sum(sum(matrizWTFxIDF)) == 0:
-        calcularModulo(matrizWTF, matrizModulo)
-        normalizacionMatriz(matrizWTF, matrizModulo, matrizNormalizada)
-        # else:
-        #     calcularModulo(matrizWTFxIDF, matrizModulo)
-        #     normalizacionMatriz(matrizWTFxIDF, matrizModulo, matrizNormalizada)
-        # modulo_raiz(lista_wtf, lista_modulo, bolsa_de_palabras[i])
-        # lista_normalizada(lista_wtf, lista_modulo, lista_normal)
-        # lista_normal = redondear(lista_normal)
-        matrizNormalizada = redondearMatriz(matrizNormalizada)
+def metodoCoseno(dataset, bolsaDePalabrasSR, definiciones):
+    matrizTF = []
+    matrizWTF = []
+    matrizDF = []
+    matrizIDF = []
+    matrizWTFxIDF = []
+    # TF
+    calcularTF(dataset, bolsaDePalabrasSR, matrizTF)
+    # WTF
+    calcularWTF(matrizTF, matrizWTF)
+    # DF
+    calcularDF(matrizWTF, matrizDF)
+    # IDF
+    calcularIDF(matrizDF, dataset, matrizIDF)
+    # WTF-IDF
+    calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF)
+    ## NORMALIZACION DE VECTORES
+    matrizModulo = []
+    matrizNormalizada = []
+    # CALCULAR MODULO
+    calcularModulo(matrizWTFxIDF, matrizModulo)
+    # NORMALIZAR VECTORES
+    normalizacionMatriz(matrizWTFxIDF, matrizModulo, matrizNormalizada)
 
-        for lista in matrizNormalizada:
-            listaDocumentos.append(round((sum(lista) / len(bolsaDePalabrasCuradoSR[i])), 2))
-        listaSimilitudCoseno.append(listaDocumentos)
-    return listaSimilitudCoseno
+    ## COEFICIENTE COSENO
+    matrizNormalizada = np.array(matrizNormalizada)
+    coeficienteCoseno = []
+    for i in range(0, 3):
+        for j in range(3, len(matrizNormalizada)):
+            factor = round(matrizNormalizada[i].dot(matrizNormalizada[j]), 3)
+            coeficienteCoseno.append(factor)
+    matrizCoseno = np.array(coeficienteCoseno).reshape(3, len(definiciones))
+    return matrizCoseno
 
 
 app = Flask(__name__)
@@ -268,6 +260,9 @@ enfoqueCotidiano = stemming(enfoqueCotidiano)
 enfoqueCotidiano = list(itertools.chain(*enfoqueCotidiano))
 bolsaDePalabrasCurado = [enfoqueBiomedico, enfoquePsicosocial, enfoqueCotidiano]
 
+# UNIFICAR BOLSAS DE PALABRAS
+bolsaGeneralSR = crearBolsaUnificada(bolsaDePalabrasCurado)
+
 # ELIMINAR PALABRAS REPETIDAS
 enfoqueBiomedicoSR = eliminarPalabrasRepetidas(enfoqueBiomedico)
 enfoquePsicosocialSR = eliminarPalabrasRepetidas(enfoquePsicosocial)
@@ -275,8 +270,11 @@ enfoqueCotidianoSR = eliminarPalabrasRepetidas(enfoqueCotidiano)
 bolsaDePalabrasCuradoSR = [enfoqueBiomedicoSR, enfoquePsicosocialSR, enfoqueCotidianoSR]
 
 
-def analizarSimilitud(activador, documentos = ''):
+def analizarSimilitud(activador, bolsaGeneralSR, documentos=''):
     dataset = []
+    similitudJaccard = []
+    similitudCoseno = []
+    bolsaDePalabrasCuradoSR = [enfoqueBiomedicoSR, enfoquePsicosocialSR, enfoqueCotidianoSR]
     if activador == 0:
         dataset.append(documentos)
         dataset = convertirMayusculasEnMinusculas(dataset)
@@ -284,8 +282,13 @@ def analizarSimilitud(activador, documentos = ''):
         dataset = tokenizacion(dataset)
         dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
+        for lista in dataset:
+            bolsaDePalabrasCuradoSR.append(lista)
+            for termino in lista:
+                bolsaGeneralSR.append(termino)
+        bolsaGeneralSR = eliminarPalabrasRepetidas(bolsaGeneralSR)
         similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
-        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
+        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, bolsaGeneralSR, dataset)
     if activador == 1:
         urlDatasetDefinicionesDemencia = "https://raw.githubusercontent.com/jpillajo/Documentos/main/EXCEL%20DE%20VACIADO%20COMPLETO%20DE%20ENTREVISTAS%20PROFESIONALES%20MAYO2021.csv"
         dataset = importarDatosColumna("P7. ¿Qué entiende por demencia?", urlDatasetDefinicionesDemencia)
@@ -295,18 +298,23 @@ def analizarSimilitud(activador, documentos = ''):
         dataset = tokenizacion(dataset)
         dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
+        enfBiomedico = []
+        enfPsicosocial = []
+        enfCotidiano = []
+        for lista in dataset:
+            temp = []
+            bolsaDePalabrasCuradoSR = [enfoqueBiomedicoSR, enfoquePsicosocialSR, enfoqueCotidianoSR]
+            bolsaGeneralSR = crearBolsaUnificada(bolsaDePalabrasCurado)
+            bolsaDePalabrasCuradoSR.append(lista)
+            for termino in lista:
+                bolsaGeneralSR.append(termino)
+            bolsaGeneralSR = eliminarPalabrasRepetidas(bolsaGeneralSR)
+            temp = metodoCoseno(bolsaDePalabrasCuradoSR, bolsaGeneralSR, [""])
+            enfBiomedico.append(float(temp[0]))
+            enfPsicosocial.append(float(temp[1]))
+            enfCotidiano.append(float(temp[2]))
+        similitudCoseno = [enfBiomedico, enfPsicosocial, enfCotidiano]
         similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
-        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
-    if activador == 2:
-        dataset = importarDatosColumna(documentos, "static/archivos/server_interno.csv")
-        dataset = eliminarFilasVacias(dataset)
-        dataset = convertirMayusculasEnMinusculas(dataset)
-        dataset = eliminarCaracteresEspeciales(dataset)
-        dataset = tokenizacion(dataset)
-        dataset = eliminarStopwords(dataset)
-        dataset = stemming(dataset)
-        similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
-        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, dataset)
     return [similitudJaccard, similitudCoseno]
 
 
@@ -324,7 +332,7 @@ def normalizacionDatosSimilitud(matriz):
         vectorDatosNormalizados = []
         for i in enfoque:
             if i != 0 or vectorSumaEnfoque[cont] != 0:
-                n1 = (i*100)/vectorSumaEnfoque[cont]
+                n1 = (i * 100) / vectorSumaEnfoque[cont]
             else:
                 n1 = 0
             vectorDatosNormalizados.append(n1)
@@ -339,7 +347,7 @@ def consultarDefinicion():
     dataSend = json.loads(request.data.decode())
     definicionIngresada = dataSend["definicion"]
     activador = 0
-    matrizSimilitud = analizarSimilitud(activador, definicionIngresada)
+    matrizSimilitud = analizarSimilitud(activador, bolsaGeneralSR, definicionIngresada)
     m1 = matrizSimilitud[0].transpose()
     m2 = np.array(matrizSimilitud[1]).transpose()
     matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
@@ -351,14 +359,13 @@ def consultarDefinicion():
 
     for i in range(len(similitudJaccardNormalizado)):
         jsonJaccard.append({
-            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudJaccardNormalizado[i][0]
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': float(similitudJaccardNormalizado[i][0])
         })
 
     for i in range(len(similitudCosenoNormalizado)):
         jsonCoseno.append({
-            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudCosenoNormalizado[i][0]
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': float(similitudCosenoNormalizado[i][0])
         })
-
     dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno})
     return dto
 
@@ -368,7 +375,7 @@ def obtenerDataset():
     dataSend = json.loads(request.data.decode())
     enfoque = dataSend["valor"]
     activador = 1
-    matrizSimilitud = analizarSimilitud(activador)
+    matrizSimilitud = analizarSimilitud(activador, bolsaGeneralSR)
     m1 = matrizSimilitud[0].transpose()
     m2 = np.array(matrizSimilitud[1]).transpose()
     matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
@@ -383,12 +390,12 @@ def obtenerDataset():
 
     for i in range(len(matrizJaccard)):
         jsonJaccard.append({
-            'id': i + 1, 'porcentaje': matrizJaccard[i]
+            'id': i + 1, 'porcentaje': float(matrizJaccard[i])
         })
 
     for i in range(len(matrizCoseno)):
         jsonCoseno.append({
-            'id': i + 1, 'porcentaje': matrizCoseno[i]
+            'id': i + 1, 'porcentaje': float(matrizCoseno[i])
         })
 
     dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno})
@@ -422,7 +429,7 @@ def consultarSimilitudDataset():
 
     definicion = archivoAlmacenadoCSV.loc[autor, 'Definición']
     activador = 0
-    matrizSimilitud = analizarSimilitud(activador, definicion)
+    matrizSimilitud = analizarSimilitud(activador, bolsaGeneralSR, definicion)
     m1 = matrizSimilitud[0].transpose()
     m2 = np.array(matrizSimilitud[1]).transpose()
     matrizJaccardPrevia = normalizacionDatosSimilitud(m1)
@@ -434,12 +441,12 @@ def consultarSimilitudDataset():
 
     for i in range(len(similitudJaccardNormalizado)):
         jsonJaccard.append({
-            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudJaccardNormalizado[i][0]
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': float(similitudJaccardNormalizado[i][0])
         })
 
     for i in range(len(similitudCosenoNormalizado)):
         jsonCoseno.append({
-            'enfoque': encabezadosEnfoques[i], 'porcentaje': similitudCosenoNormalizado[i][0]
+            'enfoque': encabezadosEnfoques[i], 'porcentaje': float(similitudCosenoNormalizado[i][0])
         })
 
     dto = json.dumps({'jaccard': jsonJaccard, 'coseno': jsonCoseno, 'definicion': definicion})
