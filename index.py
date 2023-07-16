@@ -205,7 +205,6 @@ def metodoCoseno(dataset, bolsaDePalabrasSR, definiciones):
     calcularIDF(matrizDF, dataset, matrizIDF)
     # WTF-IDF
     calcularWTFxIDF(matrizIDF, matrizWTF, matrizWTFxIDF)
-
     ## NORMALIZACION DE VECTORES
     matrizModulo = []
     matrizNormalizada = []
@@ -299,13 +298,23 @@ def analizarSimilitud(activador, bolsaGeneralSR, documentos=''):
         dataset = tokenizacion(dataset)
         dataset = eliminarStopwords(dataset)
         dataset = stemming(dataset)
+        enfBiomedico = []
+        enfPsicosocial = []
+        enfCotidiano = []
         for lista in dataset:
+            temp = []
+            bolsaDePalabrasCuradoSR = [enfoqueBiomedicoSR, enfoquePsicosocialSR, enfoqueCotidianoSR]
+            bolsaGeneralSR = crearBolsaUnificada(bolsaDePalabrasCurado)
             bolsaDePalabrasCuradoSR.append(lista)
             for termino in lista:
                 bolsaGeneralSR.append(termino)
-        bolsaGeneralSR = eliminarPalabrasRepetidas(bolsaGeneralSR)
+            bolsaGeneralSR = eliminarPalabrasRepetidas(bolsaGeneralSR)
+            temp = metodoCoseno(bolsaDePalabrasCuradoSR, bolsaGeneralSR, [""])
+            enfBiomedico.append(float(temp[0]))
+            enfPsicosocial.append(float(temp[1]))
+            enfCotidiano.append(float(temp[2]))
+        similitudCoseno = [enfBiomedico, enfPsicosocial, enfCotidiano]
         similitudJaccard = metodoJaccard(bolsaDePalabrasCurado, dataset)
-        similitudCoseno = metodoCoseno(bolsaDePalabrasCuradoSR, bolsaGeneralSR, dataset)
     return [similitudJaccard, similitudCoseno]
 
 
