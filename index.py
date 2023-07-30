@@ -404,21 +404,26 @@ def obtenerDataset():
 
 @app.route('/api/subir-dataset', methods=['POST'])
 def subirArchivoCSV():
-    archivoEnviadoCSV = request.files['file']
-    if archivoEnviadoCSV.mimetype == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-        archivoEnviadoCSV.save('assets/dataset.xlsx')
-        archivoAlmacenadoCSV = pd.read_excel('assets/dataset.xlsx')
-        archivoAlmacenadoCSV.to_csv('assets/dataset.csv')
-        if os.path.exists('assets/dataset.xlsx'):
-            os.remove('assets/dataset.xlsx')
-    else:
-        archivoEnviadoCSV.save('assets/dataset.csv')
-        archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
-    vectorAutores = []
-    for i in range(len(archivoAlmacenadoCSV)):
-        vectorAutores.append({'id': i, 'valor': archivoAlmacenadoCSV.loc[i]['Autor']})
-    dto = json.dumps(vectorAutores)
-    return dto
+    try:
+        archivoEnviadoCSV = request.files['file']
+        if archivoEnviadoCSV.mimetype == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            archivoEnviadoCSV.save('assets/dataset.xlsx')
+            archivoAlmacenadoCSV = pd.read_excel('assets/dataset.xlsx')
+            archivoAlmacenadoCSV.to_csv('assets/dataset.csv')
+            if os.path.exists('assets/dataset.xlsx'):
+                os.remove('assets/dataset.xlsx')
+        else:
+            archivoEnviadoCSV.save('assets/dataset.csv')
+            archivoAlmacenadoCSV = pd.read_csv('assets/dataset.csv')
+        vectorAutores = []
+        for i in range(len(archivoAlmacenadoCSV)):
+            vectorAutores.append({'id': i, 'valor': archivoAlmacenadoCSV.loc[i]['Autor']})
+        dto = json.dumps(vectorAutores)
+        return dto
+    except:
+        dto = json.dumps({'error': 'El archivo no maneja el formato requerido'})
+        return dto
+
 
 
 @app.route('/api/consultar-similitud-dataset', methods=['POST'])
@@ -458,3 +463,5 @@ def eliminarArchivoDataset():
     if os.path.exists('assets/dataset.csv'):
         os.remove('assets/dataset.csv')
     return 'Eliminación exitosa'
+
+#/home/JhonyPillajo/backend-nlp-dementia/index.py
